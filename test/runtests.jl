@@ -63,10 +63,13 @@ using Test, LinearAlgebra
 
     @test X[:, end] ≈ xr atol=1e-3
     
-    isinteractive() && plot(
-        plot(X', layout=1),
-        plot(U', layout=nu),
-    )
+    if isinteractive()
+        using Plots
+        plot(
+            plot(X', layout=1),
+            plot(U', layout=nu),
+        )
+    end
     rm("acados_ocp.json", force=true)
     rm("c_generated_code", recursive=true, force=true)
 

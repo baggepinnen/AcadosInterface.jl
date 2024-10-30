@@ -4,6 +4,8 @@ using LinearAlgebra, Random
 
 @enum AcadosStatus SUCCESS NAN_DETECTED MAXITER MINSTEP QP_FAILURE READY UNBOUNDED
 
+export AcadosStatus
+
 const casadi = PyCall.PyNULL()
 const np = PyCall.PyNULL()
 
@@ -259,6 +261,11 @@ function generate(dynamics;
     OCP(model, ocp, ocp_solver, nx, nu, N)
 end
 
+"""
+    X,U = solve_and_extract(prob::OCP, verbose=true)
+
+Solve the optimal control problem through the python interface and extract the state and control trajectories.
+"""
 function solve_and_extract(prob::OCP, verbose=true)
     ocp_solver = prob.ocp_solver
     @time status = ocp_solver.solve() |> AcadosStatus

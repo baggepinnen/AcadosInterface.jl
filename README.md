@@ -23,9 +23,15 @@ dynamics!(ẋ, x, u, p, t)
 3. Install this package, it's not registered so you may install it from the URL `using Pkg; Pkg.add(url="https://github.com/baggepinnen/AcadosInterface.jl")`
 
 
+This package has been tested with
+- casadi v3.6.6
+- acados v0.4.1 
+
+
 ## Example: Cartpole swing-up
 This example follows [JuliaSimControl: Pendulum swing-up](https://help.juliahub.com/juliasimcontrol/dev/examples/optimal_control/#Pendulum-swing-up)
 ```julia
+# Set your python path here if needed
 using AcadosInterface
 using Test, LinearAlgebra
 
@@ -60,10 +66,9 @@ umin = -umax
 
 Q1 = Diagonal([1, 1, 1, 1]) # Quadratic cost on state
 Q2 = Diagonal([0.01])       # Quadratic cost on control
-QN = Q1                     # Quadratic cost on terminal state
+QN = Q1                     # Quadratic cost on terminal state. For MPC, consider solving an ARE to get this
 
 x_labels = ["x", "θ", "dx", "dθ"]
-
 
 prob = AcadosInterface.generate(cartpole;
     nx,
@@ -102,6 +107,28 @@ rm("acados_ocp.json", force=true)
 rm("c_generated_code", recursive=true, force=true)
 ```
 
+### Running MPC
+Do something like this
+```julia
+T = 100
+X = zeros(nx, T+1)
+U = zeros(nu, T)
+x = X[:, 1]
+for i = 1:T
+    @show i
+    u = prob.ocp_solver.solve_for_x0(x, fail_on_nonzero_status=false)
+    x = prob.ocp_solver.get(2-1, "x") # -1 to account for python 0-based indexing
+    X[:, i+1] = x
+    U[:, i] = u
+end
+plot(
+    plot(X', label=permutedims(x_labels), title="State trajectory"),
+    plot(U', label="u", title="Control trajectory"),
+)
+```
+
+When running MPC, consider using real-time iteration by passing `nlp_solver_type = "SQP_RTI"` to `AcadosInterface.generate`.
+
 ## FAQ
 (Just kidding, there are no frequently asked questions yet, but feel free to ask some!)
 - If you get a method error from inside `dynamics2casadi`, there is likely a missing overload for CasADi symbols. Open an issue!
@@ -109,3 +136,5 @@ rm("c_generated_code", recursive=true, force=true)
 - This package commits type piracy by defining methods of Base functions, like `Base.sin(x::PyObject) = casadi.sin(x)` in order to allow CasADi to trace through Julia functions.
 - The default model name for generated code is `modelname = "model_$(randstring('a':'z', 6))"`. The random string is added to avoid some cache preventing you from changing solver options between runs. I am not yet sure why this is needed, maybe because PyCall loads some dynamic library that isn't reloaded unless Julia is restarted (or the name changes 😄)
 - We currently support quadratic costs only.
+- No testing has been done with DAEs, and since it is not tested it is not working.
+- To solve with a different initial condition `x0`, call `u0 = prob.ocp_solver.solve_for_x0(x0)` after having solved the problem once. This is useful for MPC.
