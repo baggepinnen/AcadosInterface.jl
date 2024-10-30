@@ -3,7 +3,7 @@
 [![Build Status](https://github.com/baggepinnen/AcadosInterface.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/baggepinnen/AcadosInterface.jl/actions/workflows/CI.yml?query=branch%3Amain)
 
 > [!CAUTION]
-> This package is under development and is not yet expected to work very well and the API is likely to break.
+> This package is under development and is expected to be buggy. Most features are still missing, and the API is likely to break.
 
 
 This package provides an interface to the [acados](https://docs.acados.org/index.html) suite of tools for optimal control and model-predictive control. We target the acados [python interface](https://docs.acados.org/python_interface/index.html) by going through [PyCall.jl](https://github.com/JuliaPy/PyCall.jl). Dynamics implemented in Julia are put through the following pipeline
@@ -84,7 +84,7 @@ prob = AcadosInterface.generate(cartpole;
     nlp_solver_max_iter = 1000,
 )
 
-X, U = AcadosInterface.simulate(prob)
+X, U = AcadosInterface.solve_and_extract(prob)
 
 @test X[:, end] ≈ xr atol=1e-3 # Test that the pendulum swing-up worked
 
@@ -101,3 +101,11 @@ The C-code is generated in the folder `c_generated_code` by `AcadosInterface.gen
 rm("acados_ocp.json", force=true)
 rm("c_generated_code", recursive=true, force=true)
 ```
+
+## FAQ
+(Just kidding, there are no frequently asked questions yet, but feel free to ask some!)
+- If you get a method error from inside `dynamics2casadi`, there is likely a missing overload for CasADi symbols. Open an issue!
+- The docstring of `AcadosInterface.generate` contains a lot of information about the available options. What is not documented there is not yet supported.
+- This package commits type piracy by defining methods of Base functions, like `Base.sin(x::PyObject) = casadi.sin(x)` in order to allow CasADi to trace through Julia functions.
+- The default model name for generated code is `modelname = "model_$(randstring('a':'z', 6))"`. The random string is added to avoid some cache preventing you from changing solver options between runs. I am not yet sure why this is needed, maybe because PyCall loads some dynamic library that isn't reloaded unless Julia is restarted (or the name changes 😄)
+- We currently support quadratic costs only.

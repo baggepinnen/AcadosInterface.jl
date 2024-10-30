@@ -12,6 +12,7 @@ function __init__()
     copy!(np, pyimport("numpy"))
 end
 
+# Add pirate overloads to make CasADi tracing work
 for ff in [sin, cos, exp, sqrt]
     f = nameof(ff)
     m = Base.parentmodule(ff)
@@ -258,7 +259,7 @@ function generate(dynamics;
     OCP(model, ocp, ocp_solver, nx, nu, N)
 end
 
-function simulate(prob::OCP, verbose=true)
+function solve_and_extract(prob::OCP, verbose=true)
     ocp_solver = prob.ocp_solver
     @time status = ocp_solver.solve() |> AcadosStatus
     verbose && ocp_solver.print_statistics()
