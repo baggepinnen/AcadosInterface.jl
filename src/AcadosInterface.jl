@@ -60,6 +60,78 @@ struct OCP2
     N
 end
 
+
+"""
+    generate(dynamics;
+        nx,
+        nu,
+        N::Int,
+        Tf,
+        p = nothing,
+        modelname = "model_$(randstring('a':'z', 6))", # Without the random string, changes to settings will have no effect unless julia is restarted
+        x_labels = nothing,
+        u_labels = nothing,
+        Q1 = nothing,
+        Q2 = nothing,
+        QN = nothing,
+        xr = zeros(nx),
+        ur = zeros(nu),
+        xrN = xr,
+        umin = nothing,
+        umax = nothing,
+        xmin = nothing,
+        xmax = nothing,
+        xNmin = nothing,
+        xNmax = nothing,
+        x0 = nothing,
+        qp_solver = "PARTIAL_CONDENSING_HPIPM",
+        hessian_approx = "GAUSS_NEWTON",
+        integrator_type = "ERK",
+        print_level = 0,
+        nlp_solver_type = "SQP",
+        globalization = "MERIT_BACKTRACKING",
+        nlp_solver_max_iter = 100,
+        generate_ocp = true,
+        generate_solver = true,
+        verbose = false,
+    )
+
+DOCSTRING
+
+# Arguments:
+- `dynamics`: A continuous-time dynamics function on the form `dynamics(x, u, p, t)` or `dynamics(dx, x, u, p, t)` where `x` is the state, `u` is the control, `p` is the parameters, and `t` is the time. The function should return the time derivative of the state.
+- `nx`: Dimension of the state
+- `nu`: Dimension of the control input
+- `N`: Optimization horizon (number of time steps)
+- `Tf`: Final time (duration). The time step is given by `Tf/N`
+- `p`: Parameters that are passed to the dynamics function
+- `modelname`: A descriptive name for the generated code
+- `x_labels`: Labels for state variables
+- `u_labels`: Labels for control variables
+- `Q1`: Quadratic cost matrix for the state along the trajectory
+- `Q2`: Quadratic cost matrix for the control along the trajectory
+- `QN`: Quadratic cost matrix for the terminal state
+- `xr`: Reference state along the trajectory
+- `ur`: Reference control along the trajectory
+- `xrN`: Reference terminal state
+- `umin`: Lower bound on the control input
+- `umax`: Upper bound on the control input
+- `xmin`: Lower bound on the state
+- `xmax`: Upper bound on the state
+- `xNmin`: Lower bound on the terminal state
+- `xNmax`: Upper bound on the terminal state
+- `x0`: Initial state
+- `qp_solver`: The QP solver to use, options are "PARTIAL_CONDENSING_HPIPM", "FULL_CONDENSING_QPOASES", "FULL_CONDENSING_HPIPM", "PARTIAL_CONDENSING_QPDUNES", "PARTIAL_CONDENSING_OSQP", "FULL_CONDENSING_DAQP"
+- `hessian_approx`: Hessian-approximation method, options are "GAUSS_NEWTON", "EXACT"
+- `integrator_type`: Integrator type, options are "IRK", "ERK"
+- `print_level`: How much to print during the optimization. 0-4
+- `nlp_solver_type`: Nonlinear programming solver type, options are "SQP_RTI", "SQP"
+- `globalization`: Globalization method, options are "FIXED_STEP", "MERIT_BACKTRACKING", "FUNNEL_L1PEN_LINESEARCH"
+- `nlp_solver_max_iter`: Maximum number of iterations for the nonlinear programming solver
+- `generate_ocp`: Turn off to only generate the model
+- `generate_solver`: Turn off to only generate the model and the OCP
+- `verbose`: Print status while generating the model and OCP
+"""
 function generate(dynamics;
     nx,
     nu,
