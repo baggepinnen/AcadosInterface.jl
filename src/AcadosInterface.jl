@@ -25,18 +25,8 @@ for ff in [sin, cos, exp, sqrt]
     end)
 end
 
-function dynamics2casadi(dynamics, nx, nu, p)
-    x = Symbolics.variables(:X, 1:nx)
-    u = Symbolics.variables(:U, 1:nu)
+function dynamics2casadi(dx::AbstractVector{Num}, x::AbstractVector{Num}, u::AbstractVector{Num}, p)
     vars = [x; u]
-    if hasmethod(dynamics, (typeof(x), typeof(u), typeof(p), Real))
-        dx = dynamics(x, u, p, 0.0)
-    elseif hasmethod(dynamics, (typeof(x), typeof(x), typeof(u), typeof(p), Real))
-        dx = similar(x)
-        dynamics(dx, x, u, p, 0.0)
-    else
-        throw(ArgumentError("dynamics must be a function of the form dynamics(x, u, p, t) or dynamics(dx, x, u, p, t)"))
-    end
 
     xd_cas = [casadi.SX.sym(string(v)*"_dot") for v in x]
     x_cas = [casadi.SX.sym(string(v)) for v in x]
@@ -54,6 +44,23 @@ function dynamics2casadi(dynamics, nx, nu, p)
     XD_cas, X_cas, U_cas, DX_cas
 end
 
+
+function symbolics_trace_dynamics(dynamics, nx::Int, nu::Int, p)
+    x = Symbolics.variables(:X, 1:nx)
+    u = Symbolics.variables(:U, 1:nu)
+    vars = [x; u]
+    if hasmethod(dynamics, (typeof(x), typeof(u), typeof(p), Real))
+        dx = dynamics(x, u, p, 0.0)
+    elseif hasmethod(dynamics, (typeof(x), typeof(x), typeof(u), typeof(p), Real))
+        dx = similar(x)
+        dynamics(dx, x, u, p, 0.0)
+    else
+        throw(ArgumentError("dynamics must be a function of the form dynamics(x, u, p, t) or dynamics(dx, x, u, p, t)"))
+    end
+
+    dx, x, u
+end
+
 struct OCP
     model
     ocp
@@ -65,7 +72,7 @@ end
 
 
 """
-    generate(dynamics;
+    prob = generate(dynamics;
         nx,
         nu,
         N::Int,
@@ -106,7 +113,7 @@ DOCSTRING
 - `nx`: Dimension of the state
 - `nu`: Dimension of the control input
 - `N`: Optimization horizon (number of time steps)
-- `Tf`: Final time (duration). The time step is given by `Tf/N`
+- `Tf`: Final time (duration). The time step is thus equal to `Tf/N`
 - `p`: Parameters that are passed to the dynamics function
 - `modelname`: A descriptive name for the generated code
 - `x_labels`: Labels for state variables
@@ -135,9 +142,11 @@ DOCSTRING
 - `generate_solver`: Turn off to only generate the model and the OCP
 - `verbose`: Print status while generating the model and OCP
 """
-function generate(dynamics;
+function generate(dynamics::AbstractVector{Num};
     nx,
     nu,
+    x = nothing,
+    u = nothing,
     N::Int,
     Tf,
     p = nothing,
@@ -169,7 +178,11 @@ function generate(dynamics;
     verbose = false,
 )
 
-    XD_cas, X_cas, U_cas, DX_cas = dynamics2casadi(dynamics, nx, nu, p)
+    length(dynamics) == nx || throw(ArgumentError("vector of symbolic expressions for dynamics must have length $nx"))
+    length(x) == nx || throw(ArgumentError("x must have length $nx"))
+    length(u) == nu || throw(ArgumentError("u must have length $nu"))
+
+    XD_cas, X_cas, U_cas, DX_cas = dynamics2casadi(dynamics, x, u, p)
     
     verbose && @info "Creating model"
     AcadosModel = pyimport("acados_template").AcadosModel
@@ -259,6 +272,11 @@ function generate(dynamics;
     ocp_solver = AcadosOcpSolver(ocp)
 
     OCP(model, ocp, ocp_solver, nx, nu, N)
+end
+
+function generate(dynamics; nx, nu, p=nothing, kwargs...)
+    dx, x, u = symbolics_trace_dynamics(dynamics, nx, nu, p)
+    generate(dx; x, u, nx, nu, p, kwargs...)
 end
 
 """

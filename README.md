@@ -11,11 +11,13 @@ This package provides an interface to the [acados](https://docs.acados.org/index
 2. `symbolics.substitute` is used to substitute the Julia symbolic variables for [CasADi](https://web.casadi.org/) symbolic variables.
 3. The acados python interface is used to generate the C code for the dynamics.
 
-The main entrypoint to the translation is `AcadosInterface.generate(dynamics; kwargs...)`, where `dynamics` is a julia function on either of the forms
+The main entrypoint to the translation is `AcadosInterface.generate(dynamics; kwargs...)`, where `dynamics` can be _either_ a julia function on either of the forms
 ```julia
 ẋ = dynamics(x, u, p, t)
 dynamics!(ẋ, x, u, p, t)
 ```
+
+_or_ a `Vector{Num}` of Symbolics.jl expressions representing the RHS of the dynamics. In this latter case, you must also provide arrays containing the state and control variables `x::Vector{Num}` and `u::Vector{Num}` as keyword arguments to `AcadosInterface.generate`. If a function is passed instead, symbolic variables are automatically generated and the function is traced through to produce the symbolic representation. 
 
 ## Installation
 1. Follow the [installation instructions for the acados python interface](https://docs.acados.org/python_interface/index.html). Try running one of their examples to make sure everything works.
