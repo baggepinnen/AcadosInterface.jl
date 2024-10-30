@@ -51,13 +51,13 @@ function dynamics2casadi(dynamics, nx, nu, p)
     XD_cas, X_cas, U_cas, DX_cas
 end
 
-struct OCP2
+struct OCP
     model
     ocp
     ocp_solver
-    nx
-    nu
-    N
+    nx::Int
+    nu::Int
+    N::Int
 end
 
 
@@ -255,10 +255,10 @@ function generate(dynamics;
     AcadosOcpSolver = pyimport("acados_template").AcadosOcpSolver
     ocp_solver = AcadosOcpSolver(ocp)
 
-    OCP2(model, ocp, ocp_solver, nx, nu, N)
+    OCP(model, ocp, ocp_solver, nx, nu, N)
 end
 
-function simulate(prob::OCP2, verbose=true)
+function simulate(prob::OCP, verbose=true)
     ocp_solver = prob.ocp_solver
     @time status = ocp_solver.solve() |> AcadosStatus
     verbose && ocp_solver.print_statistics()

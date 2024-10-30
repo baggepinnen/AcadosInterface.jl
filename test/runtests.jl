@@ -5,7 +5,7 @@ using AcadosInterface
 using Test, LinearAlgebra
 
 
-@testset "AcadosInterface.jl" begin
+# @testset "AcadosInterface.jl" begin
 
     function cartpole(x, u, p, _=0)
         mc, mp, l, g = 1.0, 0.2, 0.5, 9.81
@@ -70,4 +70,4 @@ using Test, LinearAlgebra
     rm("acados_ocp.json", force=true)
     rm("c_generated_code", recursive=true, force=true)
 
-end
+# end
