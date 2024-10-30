@@ -1,0 +1,13 @@
+name = "AcadosInterface"
+uuid = "b690eb41-eda8-4c6d-9fe6-3534bcfc59f3"
+authors = ["Fredrik Bagge Carlson"]
+version = "1.0.0-DEV"
+
+[compat]
+julia = "1.10"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
