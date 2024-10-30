@@ -21,8 +21,8 @@ _or_ a `Vector{Num}` of Symbolics.jl expressions representing the RHS of the dyn
 
 ## Installation
 1. Follow the [installation instructions for the acados python interface](https://docs.acados.org/python_interface/index.html). Try running one of their examples to make sure everything works.
-2. Make sure that PyCall.jl can find the relevant python installation. If you follow the acados advice of creating a virtual environment, this can be done by something like `julia> ENV["PYTHON"] = "<path_to_acados>/acados/bin/python3" # Path to venv python` _before_ loading PyCall.jl or AcadosInterface.jl. If PyCall has already been built, you must rebuild PyCall after having pointed to the correct python installation. See [PyCall: python-virtual-environments](https://github.com/JuliaPy/PyCall.jl?tab=readme-ov-file#python-virtual-environments) if you get lost.
-3. Install this package, it's not registered so you may install it from the URL `using Pkg; Pkg.add(url="https://github.com/baggepinnen/AcadosInterface.jl")`
+2. Make sure that PyCall.jl can find the relevant python installation. If you follow the acados advice of creating a virtual environment, this can be done by something like `julia> ENV["PYCALL_JL_RUNTIME_PYTHON"] = "<path_to_acados>/acados/bin/python3" # Path to venv python` _before_ loading PyCall.jl or AcadosInterface.jl. If PyCall has already been built, you may have to rebuild PyCall after having pointed to the correct python installation. See [PyCall: python-virtual-environments](https://github.com/JuliaPy/PyCall.jl?tab=readme-ov-file#python-virtual-environments) if you get lost.
+3. Install this package. It's not registered so you may install it from the URL `using Pkg; Pkg.add(url="https://github.com/baggepinnen/AcadosInterface.jl")`
 
 
 This package has been tested with

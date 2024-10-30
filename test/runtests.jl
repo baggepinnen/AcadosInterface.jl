@@ -1,5 +1,4 @@
-ENV["PYTHON"] = "/home/fredrikb/repos/acados/bin/python3" # Path to venv python 
-ENV["PYCALL_JL_RUNTIME_PYTHON"] = "/home/fredrikb/repos/acados/bin/python3"
+get!(ENV, "PYCALL_JL_RUNTIME_PYTHON", "/home/fredrikb/repos/acados/bin/python3") # Path to venv python 
 
 using AcadosInterface
 using Test, LinearAlgebra
