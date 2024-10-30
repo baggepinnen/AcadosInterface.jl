@@ -86,6 +86,7 @@ end
         QN = nothing,
         xr = zeros(nx),
         ur = zeros(nu),
+        yr = [xr; ur],
         xrN = xr,
         umin = nothing,
         umax = nothing,
@@ -104,6 +105,15 @@ end
         generate_ocp = true,
         generate_solver = true,
         verbose = false,
+        cost_type = "NONLINEAR_LS",
+        cost_type_e = "NONLINEAR_LS",
+        Vx = nothing,
+        Vu = nothing,
+        Vx_e = nothing,
+        Vu_e = nothing,
+        yref_e = yr,
+        model = nothing,
+        ocp = nothing,
     )
 
 DOCSTRING
@@ -123,6 +133,7 @@ DOCSTRING
 - `QN`: Quadratic cost matrix for the terminal state
 - `xr`: Reference state along the trajectory
 - `ur`: Reference control along the trajectory
+- `yr`: Reference output along the trajectory, used with `cost_type = "LINEAR_LS"` and `Vx, Vu`.
 - `xrN`: Reference terminal state
 - `umin`: Lower bound on the control input
 - `umax`: Upper bound on the control input
@@ -141,6 +152,12 @@ DOCSTRING
 - `generate_ocp`: Turn off to only generate the model
 - `generate_solver`: Turn off to only generate the model and the OCP
 - `verbose`: Print status while generating the model and OCP
+- `cost_type`: Cost type for the path cost, options are "LINEAR_LS", "NONLINEAR_LS"
+- `cost_type_e`: Cost type for the terminal cost, options are "LINEAR_LS", "NONLINEAR_LS"
+- `Vx`: Linear output matrix for the path cost, i.e., `y = Vx*x + Vu*u`
+- `Vu`: Linear output matrix for the path cost, i.e., `y = Vx*x + Vu*u`
+- `model`: A pre-existing model to use
+- `ocp`: A pre-existing OCP to use
 """
 function generate(dynamics::AbstractVector{Num};
     nx,
@@ -158,6 +175,7 @@ function generate(dynamics::AbstractVector{Num};
     QN = nothing,
     xr = zeros(nx),
     ur = zeros(nu),
+    yr = [xr; ur],
     xrN = xr,
     umin = nothing,
     umax = nothing,
@@ -176,6 +194,15 @@ function generate(dynamics::AbstractVector{Num};
     generate_ocp = true,
     generate_solver = true,
     verbose = false,
+    cost_type = "NONLINEAR_LS",
+    cost_type_e = "NONLINEAR_LS",
+    Vx = nothing,
+    Vu = nothing,
+    Vx_e = nothing,
+    Vu_e = nothing,
+    yref_e = yr,
+    model = nothing,
+    ocp = nothing,
 )
 
     length(dynamics) == nx || throw(ArgumentError("vector of symbolic expressions for dynamics must have length $nx"))
@@ -186,81 +213,115 @@ function generate(dynamics::AbstractVector{Num};
     
     verbose && @info "Creating model"
     AcadosModel = pyimport("acados_template").AcadosModel
-    model = AcadosModel()
-    model.f_expl_expr = DX_cas
-    model.f_impl_expr = XD_cas - DX_cas
-    model.xdot = XD_cas
-    model.x = X_cas
-    model.u = U_cas
-    model.name = modelname 
-    x_labels === nothing || (model.x_labels = x_labels)
-    u_labels === nothing || (model.u_labels = u_labels)
+    if model === nothing
+        model = AcadosModel()
+        model.f_expl_expr = DX_cas
+        model.f_impl_expr = XD_cas - DX_cas
+        model.xdot = XD_cas
+        model.x = X_cas
+        model.u = U_cas
+        model.name = modelname 
+        x_labels === nothing || (model.x_labels = x_labels)
+        u_labels === nothing || (model.u_labels = u_labels)
+    end
+
 
     generate_ocp || return model
 
     verbose && @info "Creating OCP"
-    AcadosOcp = pyimport("acados_template").AcadosOcp
-    ocp = AcadosOcp()
-    ocp.model = model
-    ocp.solver_options.N_horizon = N
-    ocp.solver_options.tf = Tf
+    if ocp === nothing
+        AcadosOcp = pyimport("acados_template").AcadosOcp
+        ocp = AcadosOcp()
+        ocp.model = model
+        ocp.solver_options.N_horizon = N
+        ocp.solver_options.tf = Tf
 
 
-    # path cost
-    if Q1 !== nothing
-        verbose && @info "Adding path cost"
-        isnothing(Q2) && throw(ArgumentError("Q2 must be provided if Q1 is provided"))
-        ocp.cost.cost_type = "NONLINEAR_LS"
-        ocp.model.cost_y_expr = casadi.vertcat(model.x, model.u)
-        ocp.cost.yref = np.array([xr; ur])
-        ocp.cost.W = casadi.diagcat(np.matrix(Q1), np.matrix(Q2)).full()
+        # path cost
+        if Q1 !== nothing
+            # NOTE: this is actually using the nonlinear interface even though we have a linear output function y = [x; u]
+            verbose && @info "Adding path cost"
+            isnothing(Q2) && throw(ArgumentError("Q2 must be provided if Q1 is provided"))
+            ocp.cost.cost_type = cost_type
+            ocp.model.cost_y_expr = casadi.vertcat(model.x, model.u) # This is the potentially nonlinear output function, here we use a linear function for now. TODO: trace a nonlinear user-provided output function
+            ocp.cost.yref = np.array(yr)
+            ocp.cost.W = casadi.diagcat(np.matrix(Q1), np.matrix(Q2)).full()
+        end
+        if Vx !== nothing
+            verbose && @info "Adding linear path cost"
+            isnothing(Vu) && throw(ArgumentError("Vu must be provided if Vx is provided"))
+            isnothing(yr) && throw(ArgumentError("yr must be provided if Vx is provided"))
+            cost_type == "LINEAR_LS" || throw(ArgumentError("cost_type must be 'LINEAR_LS' if Vx and Vu are provided"))
+            ocp.cost.cost_type = cost_type
+            ocp.cost.yref = np.array(yr)
+            ocp.cost.Vx = np.array(Vx) # Cz in z = Cz*x + Dz*u
+            ocp.cost.Vu = np.array(Vu) # Dz
+        end
+
+        # terminal cost
+        if QN !== nothing
+            verbose && @info "Adding terminal cost"
+            ocp.cost.cost_type_e = cost_type_e
+            ocp.cost.yref_e = np.array(xrN)
+            ocp.model.cost_y_expr_e = model.x
+            ocp.cost.W_e = np.matrix(QN)
+        end
+
+        if Vx_e !== nothing
+            verbose && @info "Adding linear terminal cost"
+            isnothing(Vu_e) && throw(ArgumentError("Vu_e must be provided if Vx_e is provided"))
+            isnothing(yref_e) && throw(ArgumentError("yref_e must be provided if Vx_e is provided"))
+            cost_type_e == "LINEAR_LS" || throw(ArgumentError("cost_type_e must be 'LINEAR_LS' if Vx_e and Vu_e are provided"))
+            ocp.cost.cost_type_e = cost_type_e
+            ocp.cost.yref_e = np.array(yref_e)
+            ocp.cost.Vx_e = np.array(Vx_e) # Cz in z = Cz*x + Dz*u
+            ocp.cost.Vu_e = np.array(Vu_e) # Dz
+        end
+
+        # set constraints
+        if umin !== nothing
+            verbose && @info "Adding control constraints"
+            isnothing(umax) && throw(ArgumentError("umax must be provided if umin is provided"))
+            ocp.constraints.lbu = np.array(umin)
+            ocp.constraints.ubu = np.array(umax)
+            ocp.constraints.idxbu = findall(isfinite.(umax) .| isfinite.(umin)) .- 1 # u indices that have bounds declared
+        end
+
+        if xmin !== nothing
+            verbose && @info "Adding state constraints"
+            isnothing(xmax) && throw(ArgumentError("xmax must be provided if xmin is provided"))
+            ocp.constraints.lbx = np.array(xmin)
+            ocp.constraints.ubx = np.array(xmax)
+        end
+        
+        if x0 !== nothing
+            verbose && @info "Adding initial state constraints"
+            ocp.constraints.x0 = np.array(x0)
+        end
+
+        # terminal constraints
+        if xNmin !== nothing
+            verbose && @info "Adding terminal state constraints"
+            isnothing(xNmax) && throw(ArgumentError("xNmax must be provided if xNmin is provided"))
+            ocp.constraints.lbx_e = np.array(xNmin)
+            ocp.constraints.ubx_e = np.array(xNmax)
+
+            ocp.constraints.idxbx_e = findall(isfinite.(xNmax) .| isfinite.(xNmin)) .- 1 # x indices that have terminal bounds declared
+        end
+
+
+        # set options
+        verbose && @info "Setting solver options"
+        ocp.solver_options.qp_solver = qp_solver # FULL_CONDENSING_QPOASES
+        # PARTIAL_CONDENSING_HPIPM, FULL_CONDENSING_QPOASES, FULL_CONDENSING_HPIPM,
+        # PARTIAL_CONDENSING_QPDUNES, PARTIAL_CONDENSING_OSQP, FULL_CONDENSING_DAQP
+        ocp.solver_options.hessian_approx = hessian_approx # "GAUSS_NEWTON", "EXACT"
+        ocp.solver_options.integrator_type = integrator_type # IRK, ERK
+        ocp.solver_options.print_level = print_level
+        ocp.solver_options.nlp_solver_type = nlp_solver_type # SQP_RTI, SQP
+        ocp.solver_options.nlp_solver_max_iter = nlp_solver_max_iter
+        ocp.solver_options.globalization = globalization # turns on globalization
     end
-
-    # terminal cost
-    if QN !== nothing
-        verbose && @info "Adding terminal cost"
-        ocp.cost.cost_type_e = "NONLINEAR_LS"
-        ocp.cost.yref_e = np.array(xrN)
-        ocp.model.cost_y_expr_e = model.x
-        ocp.cost.W_e = np.matrix(QN)
-    end
-
-    # set constraints
-    if umin !== nothing
-        verbose && @info "Adding control constraints"
-        isnothing(umax) && throw(ArgumentError("umax must be provided if umin is provided"))
-        ocp.constraints.lbu = np.array(umin)
-        ocp.constraints.ubu = np.array(umax)
-        ocp.constraints.idxbu = findall(isfinite.(umax) .| isfinite.(umin)) .- 1 # u indices that have bounds declared
-    end
-    
-    if x0 !== nothing
-        verbose && @info "Adding initial state constraints"
-        ocp.constraints.x0 = np.array(x0)
-    end
-
-    # terminal constraints
-    if xNmin !== nothing
-        verbose && @info "Adding terminal state constraints"
-        isnothing(xNmax) && throw(ArgumentError("xNmax must be provided if xNmin is provided"))
-        ocp.constraints.lbx_e = np.array(xNmin)
-        ocp.constraints.ubx_e = np.array(xNmax)
-
-        ocp.constraints.idxbx_e = findall(isfinite.(xNmax) .| isfinite.(xNmin)) .- 1 # x indices that have terminal bounds declared
-    end
-
-
-    # set options
-    verbose && @info "Setting solver options"
-    ocp.solver_options.qp_solver = qp_solver # FULL_CONDENSING_QPOASES
-    # PARTIAL_CONDENSING_HPIPM, FULL_CONDENSING_QPOASES, FULL_CONDENSING_HPIPM,
-    # PARTIAL_CONDENSING_QPDUNES, PARTIAL_CONDENSING_OSQP, FULL_CONDENSING_DAQP
-    ocp.solver_options.hessian_approx = hessian_approx # "GAUSS_NEWTON", "EXACT"
-    ocp.solver_options.integrator_type = integrator_type # IRK, ERK
-    ocp.solver_options.print_level = print_level
-    ocp.solver_options.nlp_solver_type = nlp_solver_type # SQP_RTI, SQP
-    ocp.solver_options.nlp_solver_max_iter = nlp_solver_max_iter
-    ocp.solver_options.globalization = globalization # turns on globalization
 
     # rm("acados_ocp.json", force=true)
     # rm("c_generated_code", recursive=true, force=true)
