@@ -1,12 +1,10 @@
 # AcadosInterface
 
-[![Build Status](https://github.com/baggepinnen/AcadosInterface.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/baggepinnen/AcadosInterface.jl/actions/workflows/CI.yml?query=branch%3Amain)
-
 > [!CAUTION]
 > This package is under development and is expected to be buggy. Most features are still missing, and the API is likely to break.
 
 
-This package provides an interface to the [acados](https://docs.acados.org/index.html) suite of tools for optimal control and model-predictive control. We target the acados [python interface](https://docs.acados.org/python_interface/index.html) by going through [PyCall.jl](https://github.com/JuliaPy/PyCall.jl). Dynamics implemented in Julia are put through the following pipeline
+This package provides a Julia interface to the [acados](https://docs.acados.org/index.html) suite of tools for optimal control and model-predictive control. We target the acados [python interface](https://docs.acados.org/python_interface/index.html) by going through [PyCall.jl](https://github.com/JuliaPy/PyCall.jl). Dynamics implemented in Julia are put through the following pipeline
 1. [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl) is used to build a symbolic representation of the Julia dynamcis. The detour through Symbolics.jl is generally necessary since objects from PyCall are not able to handle nearly enough of the Julia language for tracing directly with CasADi symbols to work.
 2. `symbolics.substitute` is used to substitute the Julia symbolic variables for [CasADi](https://web.casadi.org/) symbolic variables.
 3. The acados python interface is used to generate the C code for the dynamics.
